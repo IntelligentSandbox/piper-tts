@@ -7,16 +7,27 @@
     <title>tts</title>
     <style>
 #form {
-display: flex; flex-direction: column; gap: 10px; max-width: 25rem;
+  display: flex; flex-direction: column; gap: 10px; max-width: 25rem;
+}
+#voices{
+  max-width: 10rem;
+  margin-bottom: 5px;
 }
     </style>
   </head>
+  <span>voice:</span>
+  <select name="voices" id="voices">
+    <option value="voice1">Placeholder</option>
+    <option value="voice2">Placeholder</option>
+    <option value="voice3">Placeholder</option>
+    <option value="voice4">Placeholder</option>
+  </select>
   <body>
     <form id="form">
       <label for="tts">message:</label>
       <textarea id="tts" name="tts" rows="10" cols="25"></textarea>
       <input id="submit" type="submit" value="send message" />
-    <form/>
+      <form/>
   </body>
   <script>
     document.getElementById('submit').addEventListener('click', () => {
