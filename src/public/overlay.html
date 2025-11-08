@@ -12,6 +12,7 @@
 </style>
 <script>
   // TODO: add this to overlay api.
+  // Polls the server for queued TTS jobs / request synthesis / plays audio
   (function () {
     const q = new URLSearchParams(location.search);
     const key = q.get('key') || '';

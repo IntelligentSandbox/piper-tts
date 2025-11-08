@@ -5,3 +5,5 @@ itsdangerous
 piper-tts
 jupyter
 openai-whisper
+PyJWT
+requests
