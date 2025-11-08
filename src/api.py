@@ -82,14 +82,42 @@ def need(role):
     return Depends(dep)
 
 
-def make_app(cfg):
+def make_app(cfg, config_path: str | None = None):
     global app, Q
     Q = deque(maxlen=256)
 
-    eng.init(cfg)
+    # derive base dir from provided config_path when available
+    config_dir = None
+    if config_path:
+        try:
+            config_dir = os.path.dirname(os.path.abspath(config_path))
+        except Exception:
+            config_dir = None
+    else:
+        possible = [
+            os.getenv("CFG") or "",
+            os.path.join(os.path.dirname(__file__), "private", "config.yaml"),
+            os.path.join(os.path.dirname(__file__), "config.yaml"),
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml"),
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "private", "config.yaml"),
+            os.path.join(os.getcwd(), "config.yaml"),
+        ]
+        for p in possible:
+            if not p:
+                continue
+            try:
+                if os.path.exists(p):
+                    config_dir = os.path.dirname(os.path.abspath(p))
+                    break
+            except Exception:
+                continue
     app = FastAPI(title="tts")
-
-    sd = cfg.get("sounds_dir", "./sounds")
+    app.state.config_dir = config_dir
+    eng.init(cfg, base_dir=config_dir)
+    sd = cfg.get(
+        "sounds_dir",
+        os.path.join(os.path.dirname(__file__), "..", "sounds"),
+    )
     if os.path.isdir(sd):
         app.mount("/sounds", StaticFiles(directory=sd), name="sounds")
 
@@ -99,11 +127,16 @@ def make_app(cfg):
         s.get("file")
         or (cfg.get("auth") or {}).get("file")
         or cfg.get("secrets_file")
-        or "./secrets.yaml"
+        or os.path.join(os.path.dirname(__file__), "private", "secrets.yaml")
     )
-    secret = s.get("secret") or sec.ensure_session_secret(secrets_file)
-    db.init_db(cfg.get("db_file", "./data/tts.db"))
-    app.state.jwt_secret = cfg.get("jwt_secret") or sec.ensure_jwt_secret(secrets_file)
+    secret = s.get("secret") or sec.ensure_session_secret(secrets_file, base_dir=config_dir)
+    db.init_db(
+        cfg.get(
+            "db_file",
+            os.path.join(os.path.dirname(__file__), "private", "data", "tts.db"),
+        )
+    )
+    app.state.jwt_secret = cfg.get("jwt_secret") or sec.ensure_jwt_secret(secrets_file, base_dir=config_dir)
     app.add_middleware(
         SessionMiddleware,
         secret_key=secret,
@@ -268,6 +301,7 @@ def make_app(cfg):
                 if req and req.app.state.cfg
                 else None
             ),
+            base_dir=(req.app.state.config_dir if req and req.app.state else None),
         )
         client_id = cfg.get("client_id")
         redirect = cfg.get("redirect_uri") or (req.url_for("overlay") if req else None)
@@ -302,6 +336,7 @@ def make_app(cfg):
                 if request and request.app.state.cfg
                 else None
             ),
+            base_dir=(request.app.state.config_dir if request and request.app.state else None),
         )
         client_id = cfg.get("client_id")
         client_secret = cfg.get("client_secret")
@@ -368,6 +403,7 @@ def make_app(cfg):
                 if request and request.app.state.cfg
                 else None
             ),
+            base_dir=(request.app.state.config_dir if request and request.app.state else None),
         )
         role = mapped.get(str(twitch_id)) or mapped.get((login or "").lower())
         if role == "admin":
@@ -402,7 +438,7 @@ def make_app(cfg):
 
     @r.get("/auth/mappings", dependencies=[need("admin")])
     def auth_mappings():
-        maps = sec.list_oauth_mappings(None, app.state.cfg.get("secrets_file"))
+        maps = sec.list_oauth_mappings(None, app.state.cfg.get("secrets_file"), base_dir=app.state.config_dir)
         return {"mappings": maps}
 
     @r.post("/auth/mapping", dependencies=[need("admin")])
@@ -414,14 +450,14 @@ def make_app(cfg):
         if not provider or not remote or role not in ("admin", "mod"):
             raise HTTPException(400, "bad mapping")
         sec.save_oauth_mapping(
-            provider, remote, role, app.state.cfg.get("secrets_file")
+            provider, remote, role, app.state.cfg.get("secrets_file"), base_dir=app.state.config_dir
         )
         return {"ok": True}
 
     @r.delete("/auth/mapping/{provider}/{remote}", dependencies=[need("admin")])
     def auth_mapping_delete(provider: str, remote: str):
         if sec.delete_oauth_mapping(
-            provider, remote, app.state.cfg.get("secrets_file")
+            provider, remote, app.state.cfg.get("secrets_file"), base_dir=app.state.config_dir
         ):
             return {"ok": True}
         raise HTTPException(404, "mapping not found")

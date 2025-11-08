@@ -26,6 +26,9 @@ _auth = {"enabled": False, "keys": {}}
 sfx_files = {}
 sfx_aliases = {}
 
+DEFAULT_SOUNDS = os.path.join(os.path.dirname(__file__), "..", "sounds")
+DEFAULT_VOICES = os.path.join(os.path.dirname(__file__), "..", "voices")
+
 
 class LRU:
     def __init__(self, n, ttl):
@@ -63,9 +66,21 @@ class LRU:
             return {"items": len(self.od), "capacity": self.n, "ttl_sec": self.ttl}
 
 
-def init(c):
+def init(c, base_dir: str | None = None):
     global cfg, sem, cache, aliases, presets, moder, _auth
     cfg = c
+    if base_dir:
+        try:
+            project_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+            for k in ("voices_dir", "sounds_dir"):
+                v = cfg.get(k)
+                if v and not os.path.isabs(v):
+                    if str(v).startswith(".."):
+                        cfg[k] = os.path.normpath(os.path.join(base_dir, v))
+                    else:
+                        cfg[k] = os.path.normpath(os.path.join(project_root, v))
+        except Exception:
+            pass
     sem = threading.Semaphore(int(cfg.get("max_concurrency", 2)))
     cache = LRU(int(cfg.get("cache_size", 64)), int(cfg.get("cache_ttl_s", 300)))
     aliases = dict(cfg.get("aliases", {}))
@@ -74,7 +89,7 @@ def init(c):
     moder = mod.Moderator(mcfg) if mcfg.get("enabled", False) else None
     a = cfg.get("auth") or {}
     if a.get("enabled"):
-        _auth = {"enabled": True, "keys": sec.ensure_keys(a)}
+        _auth = {"enabled": True, "keys": sec.ensure_keys(a, base_dir=base_dir)}
         print(f"[auth] enabled; roles={list(_auth['keys'].keys())}")
     else:
         _auth = {"enabled": False, "keys": {}}
@@ -84,7 +99,7 @@ def init(c):
 def _scan_sounds():
     global sfx_files
     sfx_files = {}
-    d = cfg.get("sounds_dir", "./sounds")
+    d = cfg.get("sounds_dir", DEFAULT_SOUNDS)
     exts = (".mp3", ".wav", ".ogg", ".m4a")
     if not os.path.isdir(d):
         return sfx_files
@@ -103,7 +118,7 @@ def get_sfx_index():
         _scan_sounds()
     # expose "file" relative to /sounds mount
     out = {}
-    sd = os.path.abspath(cfg.get("sounds_dir", "./sounds"))
+    sd = os.path.abspath(cfg.get("sounds_dir", DEFAULT_SOUNDS))
     for sid, ap in sfx_files.items():
         rel = os.path.relpath(ap, sd).replace("\\", "/")
         out[sid] = {"file": rel}
@@ -191,7 +206,7 @@ def mod_reload():
 def _scan():
     global scanned, vc
     v = {}
-    p = cfg.get("voices_dir", "./voices")
+    p = cfg.get("voices_dir", DEFAULT_VOICES)
     for j in glob.glob(os.path.join(p, "**", "*.onnx.json"), recursive=True):
         m = j[:-5]
         if not os.path.exists(m):

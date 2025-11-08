@@ -12,13 +12,19 @@ def load_cfg(p):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cfg", default=os.getenv("CFG", "config.yaml"))
+    ap.add_argument(
+        "--cfg",
+        default=os.getenv(
+            "CFG",
+            os.path.join(os.path.dirname(__file__), "private", "config.yaml"),
+        ),
+    )
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--debug", action="store_true")
     a = ap.parse_args()
 
     cfg = load_cfg(a.cfg)
-    app = make_app(cfg)
+    app = make_app(cfg, a.cfg)
 
     uvicorn.run(app, host=a.host, port=a.port, log_level="debug" if a.debug else "info")

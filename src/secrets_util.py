@@ -4,6 +4,19 @@ import secrets
 import yaml
 
 ROLES = ["admin", "mod", "tts", "push", "pull", "overlay"]
+DEFAULT_SECRETS = os.path.join(os.path.dirname(__file__), "private", "secrets.yaml")
+_POSSIBLE_CONFIG_PATHS = [
+    os.path.join(os.path.dirname(__file__), "private", "config.yaml"),
+    os.path.join(os.path.dirname(__file__), "config.yaml"),
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml"),
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "private", "config.yaml"),
+    os.path.join(os.getcwd(), "config.yaml"),
+]
+_CONFIG_DIR = os.path.dirname(DEFAULT_SECRETS)
+for _p in _POSSIBLE_CONFIG_PATHS:
+    if os.path.exists(_p):
+        _CONFIG_DIR = os.path.dirname(_p)
+        break
 
 
 def _chmod600(p):
@@ -13,39 +26,51 @@ def _chmod600(p):
         pass
 
 
-def _read_yaml(p):
-    # default to ./secrets.yaml when callers pass None or a falsy path
+def _resolve_path(p: str | None, base_dir: str | None = None) -> str:
     if not p:
-        p = "./secrets.yaml"
-    if os.path.exists(p):
-        with open(p, "r", encoding="utf-8") as f:
+        return DEFAULT_SECRETS
+    if os.path.isabs(p):
+        return p
+    if base_dir:
+        if not os.path.isabs(base_dir):
+            base = os.path.normpath(os.path.join(_CONFIG_DIR, base_dir))
+        else:
+            base = base_dir
+        return os.path.normpath(os.path.join(base, p))
+    return os.path.normpath(os.path.join(_CONFIG_DIR, p))
+
+
+def _read_yaml(p, base_dir: str | None = None):
+    rp = _resolve_path(p, base_dir)
+    if os.path.exists(rp):
+        with open(rp, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
 
 
-def _write_yaml(p, data):
-    # default to ./secrets.yaml when callers pass None or a falsy path
-    if not p:
-        p = "./secrets.yaml"
-    os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
-    with open(p, "w", encoding="utf-8") as f:
+def _write_yaml(p, data, base_dir: str | None = None):
+    rp = _resolve_path(p, base_dir)
+    os.makedirs(os.path.dirname(rp) or ".", exist_ok=True)
+    with open(rp, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, sort_keys=True)
-    _chmod600(p)
+    _chmod600(rp)
 
 
-def ensure_session_secret(path="./secrets.yaml"):
-    data = _read_yaml(path)
+def ensure_session_secret(path: str | None = None, base_dir: str | None = None):
+    rp = _resolve_path(path, base_dir)
+    data = _read_yaml(path, base_dir)
     if "session_secret" not in data:
         data["session_secret"] = secrets.token_urlsafe(48)
-        _write_yaml(path, data)
-        print(f"[session] wrote {path}")
+        _write_yaml(path, data, base_dir)
+        print(f"[session] wrote {rp}")
         print("[session] keep session_secret private")
     return data["session_secret"]
 
 
-def ensure_keys(auth_cfg: dict):
-    path = (auth_cfg or {}).get("file") or "./secrets.yaml"
-    data = _read_yaml(path)
+def ensure_keys(auth_cfg: dict, base_dir: str | None = None):
+    path = (auth_cfg or {}).get("file") or DEFAULT_SECRETS
+    rp = _resolve_path(path, base_dir)
+    data = _read_yaml(path, base_dir)
     ks = dict(data.get("keys", {}))
     created = []
     for r in ROLES:
@@ -56,41 +81,34 @@ def ensure_keys(auth_cfg: dict):
             created.append(r)
     if created or "keys" not in data:
         data["keys"] = ks
-        _write_yaml(path, data)
-        print(f"[auth] wrote {path}")
+        _write_yaml(path, data, base_dir)
+        print(f"[auth] wrote {rp}")
         for r in created:
             print(f"[auth] save this {r} key: {ks[r]}")
     return ks
 
 
-def ensure_jwt_secret(path="./secrets.yaml"):
-    data = _read_yaml(path)
+def ensure_jwt_secret(path: str | None = None, base_dir: str | None = None):
+    rp = _resolve_path(path, base_dir)
+    data = _read_yaml(path, base_dir)
     if "jwt_secret" not in data:
         data["jwt_secret"] = secrets.token_urlsafe(48)
-        _write_yaml(path, data)
-        print(f"[jwt] wrote {path}")
+        _write_yaml(path, data, base_dir)
+        print(f"[jwt] wrote {rp}")
         print("[jwt] keep jwt_secret private")
     return data["jwt_secret"]
 
 
-def get_oauth_provider(provider: str, path: str = "./secrets.yaml"):
-    """Return oauth provider config (client_id, client_secret) from secrets file.
-
-    Expected structure in secrets.yaml:
-    oauth:
-      twitch:
-        client_id: "..."
-        client_secret: "..."
-        redirect_uri: "https://yourhost/api/auth/callback"
-    """
-    data = _read_yaml(path)
+def get_oauth_provider(provider: str, path: str | None = None, base_dir: str | None = None):
+    data = _read_yaml(path, base_dir)
     return (data.get("oauth") or {}).get(provider, {})
 
 
 def save_oauth_mapping(
-    provider: str, remote_id: str, role: str, path: str = "./secrets.yaml"
+    provider: str, remote_id: str, role: str, path: str | None = None, base_dir: str | None = None
 ):
-    data = _read_yaml(path)
+    rp = _resolve_path(path, base_dir)
+    data = _read_yaml(path, base_dir)
     oauth = data.setdefault("oauth", {})
     maps = oauth.setdefault("mappings", {})
     prov = maps.setdefault(provider, {})
@@ -98,19 +116,20 @@ def save_oauth_mapping(
     if not r.isdigit():
         r = r.lower()
     prov[r] = role
-    _write_yaml(path, data)
+    _write_yaml(path, data, base_dir)
 
 
-def list_oauth_mappings(provider: str | None = None, path: str = "./secrets.yaml"):
-    data = _read_yaml(path)
+def list_oauth_mappings(provider: str | None = None, path: str | None = None, base_dir: str | None = None):
+    data = _read_yaml(path, base_dir)
     maps = (data.get("oauth") or {}).get("mappings") or {}
     if provider:
         return maps.get(provider) or {}
     return maps
 
 
-def delete_oauth_mapping(provider: str, remote_id: str, path: str = "./secrets.yaml"):
-    data = _read_yaml(path)
+def delete_oauth_mapping(provider: str, remote_id: str, path: str | None = None, base_dir: str | None = None):
+    rp = _resolve_path(path, base_dir)
+    data = _read_yaml(path, base_dir)
     oauth = data.get("oauth") or {}
     maps = oauth.get("mappings") or {}
     prov = maps.get(provider) or {}
@@ -119,14 +138,13 @@ def delete_oauth_mapping(provider: str, remote_id: str, path: str = "./secrets.y
         del prov[r]
         oauth["mappings"] = maps
         data["oauth"] = oauth
-        _write_yaml(path, data)
+        _write_yaml(path, data, base_dir)
         return True
-    # try lower-case key for username-style keys
     rl = r.lower()
     if rl in prov:
         del prov[rl]
         oauth["mappings"] = maps
         data["oauth"] = oauth
-        _write_yaml(path, data)
+        _write_yaml(path, data, base_dir)
         return True
     return False
