@@ -1,7 +1,5 @@
 .venv
-mod_blocklist.txt
-config.yaml
-secrets.yaml
+src/private/
 dataset/
 __pycache__/
 data/
