@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+PyYAML
+itsdangerous
+piper-tts
+jupyter
+openai-whisper
