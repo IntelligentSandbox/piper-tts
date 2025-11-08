@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>tts panel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <h1 style="display: inline;">TTS Panel</h1>
+  <div id="auth">
+    <input id="key_mod" type="password" autocomplete="off" placeholder="mod key" />
+    <button id="login_mod">login mod</button>
+    <input id="key_admin" type="password" autocomplete="off" placeholder="admin key" />
+    <button id="login_admin">login admin</button>
+    <button id="logout">logout</button>
+    <small id="auth_status">not logged in</small>
+  </div>
+
+  <div id="row">
+    <label for="voices">voice/alias</label>
+    <select id="voices"></select>
+    <button id="refresh">refresh</button>
+    <div id="toggles">
+      <label><input type="checkbox" id="autoplay"> autoplay</label>
+      <label><input type="checkbox" id="pollq"> queue poll</label>
+    </div>
+  </div>
+
+  <div id="row2">
+    <label>preset</label>
+    <select id="preset">
+      <option value="">(none)</option>
+      <option>fast</option>
+      <option>slow</option>
+      <option>news</option>
+      <option>narration</option>
+    </select>
+    <label>length_scale</label><input id="length_scale" type="number" step="0.01" min="0.5" max="2"
+      placeholder="auto" />
+    <label>noise_w</label><input id="noise_w" type="number" step="0.01" min="0" max="2" placeholder="auto" />
+    <label>sent_silence</label><input id="sentence_silence" type="number" step="0.01" min="0" max="1"
+      placeholder="auto" />
+    <label>speaker_id</label><input id="speaker_id" type="number" min="0" step="1" placeholder="auto" />
+  </div>
+
+  <form id="form">
+    <label for="tts">message</label>
+    <textarea id="tts" rows="5" cols="90" placeholder="brian: hello or [fast] hello"></textarea>
+    <div><button id="submit" type="button" disabled>add</button></div>
+  </form>
+
+  <div id="alias_admin" style="display:none; margin:10px 0;">
+    <span class="badge">add alias (admin)</span>
+    <input id="alias_name" placeholder="alias name (e.g. brian)" />
+    <select id="alias_target"></select>
+    <button id="alias_add">add alias</button>
+  </div>
+
+  <audio id="player" controls></audio>
+
+  <table aria-label="tts messages">
+    <thead>
+      <tr>
+        <th style="width:6rem;">time</th>
+        <th>text</th>
+        <th style="width:12rem;">voice/preset</th>
+        <th style="width:7rem;">status</th>
+        <th style="width:10rem;">actions</th>
+      </tr>
+    </thead>
+    <tbody id="list"></tbody>
+  </table>
+  <script src="scripts.js"></script>
+</body>
+
+</html>
