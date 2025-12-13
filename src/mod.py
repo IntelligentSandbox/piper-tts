@@ -1,8 +1,6 @@
 import os
 import re
 import unicodedata
-import time
-
 
 _url_re = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
 
@@ -62,6 +60,7 @@ def _normalize(s):
 
 
 def _obfus_rx(term):
+    """Compile a regex that matches obfuscated variants of a term."""
     t = _normalize(term.lower())
     parts = []
     for ch in t:
@@ -72,6 +71,11 @@ def _obfus_rx(term):
 
 class SlurCensor:
     def __init__(self, path):
+        """
+        Initialize a SlurCensor instance
+
+        :param path: Path to block list
+        """
         self.path = path
         self.rxs = []
         self.raw = []
@@ -80,6 +84,7 @@ class SlurCensor:
             self._reload()
 
     def _read_terms(self):
+        """Read terms from file, ignoring empty lines and comments"""
         if not self.path or not os.path.exists(self.path):
             return []
         with open(self.path, "r", encoding="utf-8") as f:
@@ -87,6 +92,7 @@ class SlurCensor:
         return [t for t in lines if t and not t.startswith("#")]
 
     def _reload(self):
+        """Reload terms and compile regexes from the file"""
         terms = self._read_terms()
         self.raw = terms
         self.rxs = [_obfus_rx(t) for t in terms]
@@ -96,6 +102,7 @@ class SlurCensor:
             self.mtime = None
 
     def ensure_fresh(self):
+        """Reload the terms if the file has been modified"""
         if not self.path:
             return
         try:
@@ -106,13 +113,21 @@ class SlurCensor:
             self._reload()
 
     def reload(self):
+        """Force reload of terms and regexes from teh file"""
         self._reload()
 
     def list(self):
+        """Return the current list of terms."""
         self.ensure_fresh()
         return list(self.raw)
 
     def _mask(self, s):
+        """
+        Mask slurs in a string
+
+        :param s: Input string
+        :return: Tuple of masked string and number of replacements
+        """
         n = 0
 
         def repl(m):
@@ -130,6 +145,12 @@ class SlurCensor:
         return s, n
 
     def _drop(self, s):
+        """
+        Remove slurs from a string
+
+        :param s: Input string
+        :return: Tuple of cleaned string and number of removals
+        """
         n = 0
 
         def repl(m):
@@ -143,6 +164,13 @@ class SlurCensor:
         return " ".join(s.split()), n
 
     def censor(self, s, mode="drop"):
+        """
+        Apply slur censorship to a string
+
+        :param s: Input string
+        :param mode: 'mask' to mask slurs, 'drop' to remove them
+        :return: Tuple of censored string and number of replacement
+        """
         self.ensure_fresh()
         if not self.rxs:
             return s, 0
@@ -151,6 +179,12 @@ class SlurCensor:
 
 class Moderator:
     def __init__(self, cfg=None):
+        """
+        Initialize a Moderator instance
+
+        :param cfg: Optional configuration with keys:
+                        'strip_urls', 'strip_emojis', 'censor_slurs', 'blocklist_path'
+        """
         cfg = cfg or {}
         self.strip_urls = bool(cfg.get("strip_urls", True))
         self.strip_emojis = bool(cfg.get("strip_emojis", True))
@@ -159,6 +193,14 @@ class Moderator:
         self.censor = SlurCensor(bl_path) if bl_path else SlurCensor(None)
 
     def filter(self, s, mode="mask"):
+        """
+        Filter a string based on the config rules
+
+        :param s: Input string
+        :param mode: 'mask' to mask slurs, 'drop' to remove them
+        :return: Tuple of filtered string and dictionary of flags e.g.,
+                    {'urls': 0/1, 'emojis': 0/1', 'slurs': count}
+        """
         out = s or ""
         flags = {"urls": 0, "emojis": 0, "slurs": 0}
 
