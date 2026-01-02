@@ -1,11 +1,11 @@
 ## Simple example config — comments come before each setting.
+## Use relative to this config file's location.
 
 # where voice/model files live
-# when this config is placed under src/private/config.yaml, use ../voices
-voices_dir: ../voices
+voices_dir: ../../voices
 
 # optional: where static sounds live
-sounds_dir: ../sounds
+sounds_dir: ../../sounds
 
 # piper executable (on PATH or full path)
 piper_bin: piper
@@ -56,22 +56,20 @@ moderation:
   strip_emojis: true
   # censor known slurs/terms
   censor_slurs: true
-  # path to blocklist file (one term per line). If you keep private files under
-  # src/private, point here to that file (example below assumes config lives in
-  # src/ and private files live in src/private)
-  blocklist_path: ./private/mod_blocklist.txt
+  # path to blocklist file (one term per line)
+  blocklist_path: ./mod_blocklist.txt
 
 # auth configuration
 auth:
   # require auth for panel/API
   enabled: true
   # file that stores keys and oauth mappings
-  file: ./private/secrets.yaml
+  file: ./secrets.yaml
 
 # session cookie settings
 session:
   # where session secret is stored
-  file: ./private/secrets.yaml
+  file: ./secrets.yaml
   # name of the session cookie
   cookie_name: sid
   # same_site policy: lax | strict | none
