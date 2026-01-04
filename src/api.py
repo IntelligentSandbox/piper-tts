@@ -9,6 +9,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import secrets_util as sec
 import tts as eng
+import sfx
+import mod
 import uuid
 import json
 import time
@@ -170,20 +172,18 @@ def make_app(cfg, config_path: str | None = None):
 
     @r.get("/sounds", dependencies=[need("tts")])
     def list_sounds():
-        return {"index": eng.get_sfx_index(), "aliases": eng.get_sfx_aliases()}
+        return {"index": sfx.get_sfx_index(cfg), "aliases": sfx.get_sfx_aliases()}
 
     @r.post("/sfx_aliases", dependencies=[need("admin")])
     async def add_sfx_alias(req: Request):
         j = await req.json()
-        eng.set_sfx_alias(
-            (j.get("name") or "").strip().lower(), (j.get("target") or "").strip()
-        )
-        return {"aliases": eng.get_sfx_aliases()}
+        sfx.set_sfx_alias(j["name"], j["target_id"], cfg)
+        return {"aliases": sfx.get_sfx_aliases()}
 
     @r.delete("/sfx_aliases/{name}", dependencies=[need("admin")])
     def del_sfx_alias(name: str):
-        eng.del_sfx_alias(name)
-        return {"aliases": eng.get_sfx_aliases()}
+        sfx.del_sfx_alias(name)
+        return {"aliases": sfx.get_sfx_aliases()}
 
     @r.post("/tts_batch", dependencies=[need("tts")])
     async def tts_batch(req: Request):
@@ -208,7 +208,7 @@ def make_app(cfg, config_path: str | None = None):
                 if "sfx" in p:
                     if sfx_count > MAX_SOUNDS:
                         continue
-                    _, ap = eng._resolve_sfx(p.get("sfx"))
+                    _, ap = sfx._resolve_sfx(p.get("sfx"), cfg)
                     if not ap:
                         continue
                     wav48 = eng._to_48k_mono_wav(ap)
@@ -502,9 +502,9 @@ def make_app(cfg, config_path: str | None = None):
         text = (j.get("text") or "").strip()
         if not text:
             return {"masked": "", "flags": {"urls": 0, "emojis": 0, "slurs": 0}}
-        if not eng.mod_enabled():
+        if not mod.mod_enabled():
             return {"masked": text, "flags": {"urls": 0, "emojis": 0, "slurs": 0}}
-        masked, flags = eng.moder.filter(text, mode="mask")
+        masked, flags = mod.get_moderator().filter(text, mode="mask")
         return {"masked": masked, "flags": flags}
 
     @r.get("/healthz")
@@ -721,42 +721,42 @@ def make_app(cfg, config_path: str | None = None):
         raise HTTPException(404, "token not found")
 
     @r.get("/mod/list", dependencies=[need("mod")])
-    def mod_list():
-        if not eng.mod_enabled():
+    def mod_list_route():
+        if not mod.mod_enabled():
             raise HTTPException(400, "moderation disabled")
-        return {"terms": eng.mod_list()}
+        return {"terms": mod.mod_list()}
 
     @r.post("/mod/add", dependencies=[need("mod")])
-    async def mod_add(req: Request):
-        if not eng.mod_enabled():
+    async def mod_add_route(req: Request):
+        if not mod.mod_enabled():
             raise HTTPException(400, "moderation disabled")
         j = await req.json()
         term = (j.get("term") or "").strip()
         if not term:
             raise HTTPException(400, "term required")
-        return eng.mod_add(term)
+        return mod.mod_add(term)
 
     @r.post("/mod/remove", dependencies=[need("mod")])
-    async def mod_remove(req: Request):
-        if not eng.mod_enabled():
+    async def mod_remove_route(req: Request):
+        if not mod.mod_enabled():
             raise HTTPException(400, "moderation disabled")
         j = await req.json()
         term = (j.get("term") or "").strip()
         if not term:
             raise HTTPException(400, "term required")
-        return eng.mod_remove(term)
+        return mod.mod_remove(term)
 
     @r.post("/mod/reload", dependencies=[need("mod")])
-    def mod_reload():
-        if not eng.mod_enabled():
+    def mod_reload_route():
+        if not mod.mod_enabled():
             raise HTTPException(400, "moderation disabled")
-        return eng.mod_reload()
+        return mod.mod_reload()
 
     @r.get("/mod/test", dependencies=[need("mod")])
     def modtest(text: str):
         tx = text
-        if eng.mod_enabled():
-            tx2, flags = eng.moder.filter(tx)
+        if mod.mod_enabled():
+            tx2, flags = mod.get_moderator().filter(tx)
         else:
             tx2, flags = tx, {"urls": 0, "emojis": 0, "slurs": 0}
         return {"in": tx, "out": tx2, "flags": flags}
