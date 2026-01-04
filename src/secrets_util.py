@@ -2,6 +2,7 @@ import os
 import stat
 import secrets
 import yaml
+from log import logger
 
 ROLES = ["admin", "mod", "tts", "push", "pull", "overlay"]
 DEFAULT_SECRETS = os.path.join(os.path.dirname(__file__), "private", "secrets.yaml")
@@ -62,8 +63,8 @@ def ensure_session_secret(path: str | None = None, base_dir: str | None = None):
     if "session_secret" not in data:
         data["session_secret"] = secrets.token_urlsafe(48)
         _write_yaml(path, data, base_dir)
-        print(f"[session] wrote {rp}")
-        print("[session] keep session_secret private")
+        logger.info(f"[session] wrote {rp}")
+        logger.info("[session] keep session_secret private")
     return data["session_secret"]
 
 
@@ -82,9 +83,9 @@ def ensure_keys(auth_cfg: dict, base_dir: str | None = None):
     if created or "keys" not in data:
         data["keys"] = ks
         _write_yaml(path, data, base_dir)
-        print(f"[auth] wrote {rp}")
+        logger.info(f"[auth] wrote {rp}")
         for r in created:
-            print(f"[auth] save this {r} key: {ks[r]}")
+            logger.info(f"[auth] save this {r} key: {ks[r]}")
     return ks
 
 
@@ -94,18 +95,24 @@ def ensure_jwt_secret(path: str | None = None, base_dir: str | None = None):
     if "jwt_secret" not in data:
         data["jwt_secret"] = secrets.token_urlsafe(48)
         _write_yaml(path, data, base_dir)
-        print(f"[jwt] wrote {rp}")
-        print("[jwt] keep jwt_secret private")
+        logger.info(f"[jwt] wrote {rp}")
+        logger.info("[jwt] keep jwt_secret private")
     return data["jwt_secret"]
 
 
-def get_oauth_provider(provider: str, path: str | None = None, base_dir: str | None = None):
+def get_oauth_provider(
+    provider: str, path: str | None = None, base_dir: str | None = None
+):
     data = _read_yaml(path, base_dir)
     return (data.get("oauth") or {}).get(provider, {})
 
 
 def save_oauth_mapping(
-    provider: str, remote_id: str, role: str, path: str | None = None, base_dir: str | None = None
+    provider: str,
+    remote_id: str,
+    role: str,
+    path: str | None = None,
+    base_dir: str | None = None,
 ):
     rp = _resolve_path(path, base_dir)
     data = _read_yaml(path, base_dir)
@@ -119,7 +126,9 @@ def save_oauth_mapping(
     _write_yaml(path, data, base_dir)
 
 
-def list_oauth_mappings(provider: str | None = None, path: str | None = None, base_dir: str | None = None):
+def list_oauth_mappings(
+    provider: str | None = None, path: str | None = None, base_dir: str | None = None
+):
     data = _read_yaml(path, base_dir)
     maps = (data.get("oauth") or {}).get("mappings") or {}
     if provider:
@@ -127,7 +136,9 @@ def list_oauth_mappings(provider: str | None = None, path: str | None = None, ba
     return maps
 
 
-def delete_oauth_mapping(provider: str, remote_id: str, path: str | None = None, base_dir: str | None = None):
+def delete_oauth_mapping(
+    provider: str, remote_id: str, path: str | None = None, base_dir: str | None = None
+):
     rp = _resolve_path(path, base_dir)
     data = _read_yaml(path, base_dir)
     oauth = data.get("oauth") or {}
